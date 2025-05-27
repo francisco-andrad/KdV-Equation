@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-x_axis = np.linspace(-100, 0, 2001)
-massa_eixo = np.linspace(-100, 0, 1000)
+x_axis = np.linspace(0, 100, 2001)
+massa_eixo = np.linspace(0, 100, 1000)
 u_axis = []
 mass = []
 m = open('mass_data.txt', 'r')
@@ -16,11 +16,11 @@ b = 2001
 aux = []
 aux_mass = []
 
-for i in range(1000):
+for i in range(200):
     plt.title("Simulação na semirreta -  colisão com o limite do intervalo ")
     plt.xlabel("x")
     plt.ylabel("-u")
-    plt.xlim(-100, 0)
+    plt.xlim(0, 100)
     plt.ylim(-5, 20)
     f = open('kdv_data.txt', 'r')
     aux = f.readlines()[a:b]

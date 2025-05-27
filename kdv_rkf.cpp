@@ -2,9 +2,9 @@
 #include <fstream>
 #include <iostream>
 const int space_steps = 2001;                             // número de passos no espaço
-const int time_steps = 100000;                            // número de passos no tempo
-const double x_init = -100.0;                             // início do intervalo no espaço
-const double x_final = 0.0;                               // fim do intervalo no espaço
+const int time_steps = 20000;                             // número de passos no tempo
+const double x_init = 0.0;                                // início do intervalo no espaço
+const double x_final = 100.0;                             // fim do intervalo no espaço
 const double dx = (x_final - x_init) / (space_steps - 1); // incremento espaço
 const double dt = 0.0001;                                 // incremento tempo
 
@@ -70,7 +70,37 @@ double mass_conservation(double *x)
     }
     sum += pow(x[space_steps - 1], 2);
     sum *= dx / 3;
-    return sqrt(sum);
+    return sum;
+}
+
+double energy_conservation(double *x, double *x_prime)
+{
+    double sum = 0.0;
+    sum = (0.5 * pow(x_prime[0], 2)) + (0.5 * pow(x[0], 2.0));
+    for (int i = 1; i < space_steps - 1; i++)
+    {
+        if (i % 2 != 0)
+        {
+            sum += 4 * ((0.5 * pow(x_prime[i], 2)) + (0.5 * pow(x[i], 2.0)));
+        }
+        else
+        {
+            sum += 2 * ((0.5 * pow(x_prime[i], 2)) + (0.5 * pow(x[i], 2.0)));
+        }
+    }
+    sum += 0.5 * pow(x_prime[space_steps - 1], 2) + 0.5 * pow(x[space_steps - 1], 2.0);
+    sum *= dx / 3;
+    return sum;
+}
+
+void calculate_first_x_derivative(double *x, double *x_prime)
+{
+    x_prime[0] = (x[1] - x[space_steps - 1]) / (2.0 * dx);
+    for (int i = 0; i < space_steps - 1; i++)
+    {
+        x_prime[i] = (x[i + 1] - x[i - 1]) / (2.0 * dx);
+    }
+    x_prime[space_steps - 1] = (x[0] - x[space_steps - 1]) / (2.0 * dx);
 }
 
 // Procedimento que discretiza e aproxima as derivadas espaciais, transformando
@@ -87,19 +117,19 @@ void space_finite_diff(double *x, double *aux, double dx)
     // valor possa ser substituido por 0.
     // talvez o sinal do primeiro termo esteja errado
     // termo não-linear:
-    aux[0] = 0;
-    // aux[0] = -6.0 * x[0] * ((x[1] - x[space_steps - 1]) / (2.0 * dx));
+    // aux[0] = 0;
+    aux[0] = -6.0 * x[0] * ((x[1] - 0.0) / (2.0 * dx));
     // derivada terceira:
-    aux[0] = 0;
-    // aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * x[space_steps - 1] - x[space_steps - 2])) / (2.0 * dx * dx * dx);
+    // aux[0] = 0;
+    aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * 0.0 - 0.0)) / (2.0 * dx * dx * dx);
 
     // passo 1:
     // termo não-linear:
-    aux[0] = 0;
-    // aux[1] = -6.0 * x[1] * ((x[2] - x[0]) / (2.0 * dx));
+    // aux[0] = 0;
+    aux[1] = -6.0 * x[1] * ((x[2] - x[0]) / (2.0 * dx));
     // derivada terceira:
-    aux[0] = 0;
-    // aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - x[space_steps - 1])) / (2.0 * dx * dx * dx);
+    // aux[0] = 0;
+    aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - 0.0)) / (2.0 * dx * dx * dx);
 
     // dentro do initervalo:
     for (i = 2; i < space_steps - 2; i++)
@@ -114,19 +144,18 @@ void space_finite_diff(double *x, double *aux, double dx)
     // fora do intervalo:
     i = space_steps - 2;
     // termo não-linear:
-    aux[0] = 0;
-    // aux[i] = -6.0 * x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+    // aux[0] = 0;
+    aux[i] = -6.0 * x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
-    aux[0] = 0;
-    // aux[i] += -((x[i + 2 - space_steps] - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
+    // aux[0] = 0;
+    aux[i] += -((0.0 - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
     i = space_steps - 1;
     // termo não-linear:
-    aux[0] = 0;
-    // aux[i] = -6.0 * x[i] * ((x[i + 1 - space_steps] - x[i - 1]) / (2.0 * dx));
+    // aux[0] = 0;
+    aux[i] = -6.0 * x[i] * ((0.0 - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
-    aux[0] = 0;
-    // aux[i] += -((x[i + 2 - space_steps] - (2.0 * x[i + 1 - space_steps]) + (2.0 * x[i - 1]) - x[i - 2])) /
-    //           (2.0 * dx * dx * dx);
+    // aux[0] = 0;
+    aux[i] += -((0.0 - (2.0 * 0.0) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
 }
 
 // Resolve o vetor de EDO's com relação ao tempo usando um método de
@@ -138,7 +167,7 @@ void space_finite_diff(double *x, double *aux, double dx)
 void time_rkf()
 {
 
-    std::fstream mass_file, ic_file, kdv_file;
+    std::fstream mass_file, ic_file, energy_file, kdv_file;
 
     double *f1 = new double[space_steps];
     double *f2 = new double[space_steps];
@@ -147,15 +176,16 @@ void time_rkf()
     double *ic = new double[space_steps];
     double *aux = new double[space_steps];
     double *aux_ic = new double[space_steps];
-    double mass;
+    double *ic_prime = new double[space_steps];
+    double mass, energy;
 
     discretize_axis(ic);
     discretize_axis(aux_ic);
 
     // soliton_initial_conditions(ic, 2);
-    general_initial_conditions(ic, 16., 0, -90.0); // condição inicial, pode-se alterar
-    general_initial_conditions(aux_ic, 4., 0, -85);
-    linear_combination(1.0, ic, 1.0, aux_ic, ic);
+    general_initial_conditions(ic, 16., 0, 10.0); // condição inicial, pode-se alterar
+    // general_initial_conditions(aux_ic, 4., 0, -85);
+    // linear_combination(1.0, ic, 1.0, aux_ic, ic);
     //
     // discretize_axis(aux_ic);
     // general_initial_conditions(aux_ic, 8., 0, -11);
@@ -169,6 +199,7 @@ void time_rkf()
 
     kdv_file.open("kdv_data.txt", std::ios::out);
     mass_file.open("mass_data.txt", std::ios::out);
+    energy_file.open("energy_data.txt", std::ios::out);
     for (int i = 0; i < time_steps; i++)
     {
         space_finite_diff(ic, f1, dx);
@@ -185,12 +216,21 @@ void time_rkf()
         }
 
         if (i == 0)
+        {
             mass = mass_conservation(ic);
+            calculate_first_x_derivative(ic, ic_prime);
+            energy = energy_conservation(ic, ic_prime);
+        }
+
         if (i % 100 == 0)
         {
             double aux_mass = mass;
             mass = mass_conservation(ic);
             mass_file << std::scientific << mass << std::endl;
+            calculate_first_x_derivative(ic, ic_prime);
+            energy = energy_conservation(ic, ic_prime);
+            energy_file << std::scientific << energy << std::endl;
+
             // mass_file << std::endl;
 
             if (std::abs(mass - aux_mass) > 0.1)

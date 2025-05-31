@@ -1,6 +1,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+const double mu = 1;
 const int space_steps = 20001;                            // número de passos no espaço
 const int time_steps = 20000;                             // número de passos no tempo
 const double x_init = -500.0;                             // início do intervalo no espaço
@@ -19,6 +20,20 @@ void general_initial_conditions(double *ic, double c, double t, double x0)
     }
 }
 
+void testing_initial_conditions(double *ic)
+{
+    for (int i = 0; i < space_steps; i++)
+    {
+        if (i < (space_steps / 2))
+        {
+            ic[i] = 1;
+        }
+        else
+        {
+            ic[i] = 0;
+        }
+    }
+}
 void soliton_initial_conditions(double *ic, int n)
 {
     double aux;
@@ -76,20 +91,22 @@ double mass_conservation(double *x)
 double energy_conservation(double *x, double *x_prime)
 {
     double sum = 0.0;
-    sum = (0.5 * pow(x_prime[0], 2)) - (0.5 * pow(x[0], 2.0));
+    // E(u) = 0.5 * (u_x)^2 + (mu/3.0) * |u|^3
+    sum = (0.5 * pow(x_prime[0], 2)) + ((mu / 3.0) * pow(std::abs(x[0]), 3.0));
     for (int i = 1; i < space_steps - 1; i++)
     {
+        double term = (0.5 * pow(x_prime[i], 2)) + ((mu / 3.0) * pow(std::abs(x[i]), 3.0));
         if (i % 2 != 0)
         {
-            sum += 4 * ((0.5 * pow(x_prime[i], 2)) - (0.5 * pow(x[i], 2.0)));
+            sum += 4 * term;
         }
         else
         {
-            sum += 2 * ((0.5 * pow(x_prime[i], 2)) - (0.5 * pow(x[i], 2.0)));
+            sum += 2 * term;
         }
     }
-    sum += 0.5 * pow(x_prime[space_steps - 1], 2) - 0.5 * pow(x[space_steps - 1], 2.0);
-    sum *= dx / 3;
+    sum += (0.5 * pow(x_prime[space_steps - 1], 2)) + ((mu / 3.0) * pow(std::abs(x[space_steps - 1]), 3.0));
+    sum *= dx / 3.0;
     return sum;
 }
 
@@ -112,50 +129,41 @@ void calculate_first_x_derivative(double *x, double *x_prime)
 // Note que não é necessário calcular a derivada primeira para calcular a derivada segunda.
 void space_finite_diff(double *x, double *aux, double dx)
 {
+
     int i = 0;
-    // passo zero: condição de fronteira periódica. Tudo indica que esse
-    // valor possa ser substituido por 0.
-    // talvez o sinal do primeiro termo esteja errado
+    // Ponto i = 0
     // termo não-linear:
-    // aux[0] = 0;
-    aux[0] = -x[0] * ((x[1] - 0.0) / (2.0 * dx));
+    aux[0] = -2.0 * mu * std::abs(x[0]) * ((x[1] - x[space_steps - 2]) / (2.0 * dx));
     // derivada terceira:
-    // aux[0] = 0;
-    aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * 0.0 - 0.0)) / (2.0 * dx * dx * dx);
+    aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * x[space_steps - 2] - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 
-    // passo 1:
+    // Ponto i = 1
     // termo não-linear:
-    // aux[0] = 0;
-    aux[1] = -x[1] * ((x[2] - x[0]) / (2.0 * dx));
+    aux[1] = -2.0 * mu * std::abs(x[1]) * ((x[2] - x[0]) / (2.0 * dx));
     // derivada terceira:
-    // aux[0] = 0;
-    aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - 0.0)) / (2.0 * dx * dx * dx);
+    aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - x[space_steps - 2])) / (2.0 * dx * dx * dx);
 
-    // dentro do initervalo:
+    // Dentro do intervalo:
     for (i = 2; i < space_steps - 2; i++)
     {
         // termo não-linear:
-        aux[i] = -x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+        aux[i] = -2.0 * mu * std::abs(x[i]) * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
         // derivada terceira:
         aux[i] += -((x[i + 2] - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
     }
 
-    // para os últimos dois pontos, para os quais é necessário pontos
-    // fora do intervalo:
     i = space_steps - 2;
     // termo não-linear:
-    // aux[0] = 0;
-    aux[i] = -x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+    aux[i] = -2.0 * mu * std::abs(x[space_steps - 2]) * ((x[space_steps - 1] - x[space_steps - 3]) / (2.0 * dx));
     // derivada terceira:
-    // aux[0] = 0;
-    aux[i] += -((0.0 - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
+    aux[i] +=
+        -((x[1] - (2.0 * x[space_steps - 1]) + (2.0 * x[space_steps - 3]) - x[space_steps - 4])) / (2.0 * dx * dx * dx);
+
     i = space_steps - 1;
     // termo não-linear:
-    // aux[0] = 0;
-    aux[i] = -x[i] * ((0.0 - x[i - 1]) / (2.0 * dx));
+    aux[i] = -2.0 * mu * std::abs(x[space_steps - 1]) * ((x[1] - x[space_steps - 2]) / (2.0 * dx));
     // derivada terceira:
-    // aux[0] = 0;
-    aux[i] += -((0.0 - (2.0 * 0.0) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
+    aux[i] += -((x[2] - (2.0 * x[1]) + (2.0 * x[space_steps - 2]) - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 }
 
 // Resolve o vetor de EDO's com relação ao tempo usando um método de
@@ -183,8 +191,8 @@ void time_rkf()
     discretize_axis(aux_ic);
 
     // soliton_initial_conditions(ic, 2);
-    general_initial_conditions(ic, 13., 0, 0.0); // condição inicial, pode-se alterar
-    // general_initial_conditions(aux_ic, 4., 0, -85);
+    // testing_initial_conditions(ic); // condição inicial, pode-se alterar
+    general_initial_conditions(ic, 13., 0, 0.);
     // linear_combination(1.0, ic, 1.0, aux_ic, ic);
     //
     // discretize_axis(aux_ic);

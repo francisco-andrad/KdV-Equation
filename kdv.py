@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-x_axis = np.linspace(0, 100, 2001)
+x_axis = np.linspace(-500, 500, 20001)
 massa_eixo = np.linspace(0, 100, 1000)
 u_axis = []
 mass = []
@@ -11,20 +11,20 @@ mass_data = m.readlines()[0:1000]
 # for k in range(1000):
 #     mass.append(float(mass_data[k]))
 a = 0
-b = 2001
+b = 20001
 
 aux = []
 aux_mass = []
 
 for i in range(200):
-    plt.title("Simulação na semirreta -  colisão com o limite do intervalo ")
+    plt.title("Solução - KdV defocusing")
     plt.xlabel("x")
     plt.ylabel("-u")
-    plt.xlim(0, 100)
-    plt.ylim(-5, 20)
+    plt.xlim(-50, 50)
+    plt.ylim(-5, 15)
     f = open('kdv_data.txt', 'r')
     aux = f.readlines()[a:b]
-    for j in range(2001):
+    for j in range(20001):
         u_axis.append(float(aux[j]))
 
     # for k in range(1000):
@@ -37,8 +37,8 @@ for i in range(200):
     plt.close()
     u_axis.clear()
     aux_mass.clear()
-    a = a + 2002
-    b = b + 2002
+    a = a + 20002
+    b = b + 20002
     f.close()
 
 

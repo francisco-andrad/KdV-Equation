@@ -1,10 +1,10 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
-const int space_steps = 2001;                             // número de passos no espaço
+const int space_steps = 20001;                            // número de passos no espaço
 const int time_steps = 20000;                             // número de passos no tempo
-const double x_init = 0.0;                                // início do intervalo no espaço
-const double x_final = 100.0;                             // fim do intervalo no espaço
+const double x_init = -500.0;                             // início do intervalo no espaço
+const double x_final = 500.0;                             // fim do intervalo no espaço
 const double dx = (x_final - x_init) / (space_steps - 1); // incremento espaço
 const double dt = 0.0001;                                 // incremento tempo
 
@@ -76,19 +76,19 @@ double mass_conservation(double *x)
 double energy_conservation(double *x, double *x_prime)
 {
     double sum = 0.0;
-    sum = (0.5 * pow(x_prime[0], 2)) + (0.5 * pow(x[0], 2.0));
+    sum = (0.5 * pow(x_prime[0], 2)) - (0.5 * pow(x[0], 2.0));
     for (int i = 1; i < space_steps - 1; i++)
     {
         if (i % 2 != 0)
         {
-            sum += 4 * ((0.5 * pow(x_prime[i], 2)) + (0.5 * pow(x[i], 2.0)));
+            sum += 4 * ((0.5 * pow(x_prime[i], 2)) - (0.5 * pow(x[i], 2.0)));
         }
         else
         {
-            sum += 2 * ((0.5 * pow(x_prime[i], 2)) + (0.5 * pow(x[i], 2.0)));
+            sum += 2 * ((0.5 * pow(x_prime[i], 2)) - (0.5 * pow(x[i], 2.0)));
         }
     }
-    sum += 0.5 * pow(x_prime[space_steps - 1], 2) + 0.5 * pow(x[space_steps - 1], 2.0);
+    sum += 0.5 * pow(x_prime[space_steps - 1], 2) - 0.5 * pow(x[space_steps - 1], 2.0);
     sum *= dx / 3;
     return sum;
 }
@@ -96,7 +96,7 @@ double energy_conservation(double *x, double *x_prime)
 void calculate_first_x_derivative(double *x, double *x_prime)
 {
     x_prime[0] = (x[1] - x[space_steps - 1]) / (2.0 * dx);
-    for (int i = 0; i < space_steps - 1; i++)
+    for (int i = 1; i < space_steps - 1; i++)
     {
         x_prime[i] = (x[i + 1] - x[i - 1]) / (2.0 * dx);
     }
@@ -118,7 +118,7 @@ void space_finite_diff(double *x, double *aux, double dx)
     // talvez o sinal do primeiro termo esteja errado
     // termo não-linear:
     // aux[0] = 0;
-    aux[0] = -6.0 * x[0] * ((x[1] - 0.0) / (2.0 * dx));
+    aux[0] = -x[0] * ((x[1] - 0.0) / (2.0 * dx));
     // derivada terceira:
     // aux[0] = 0;
     aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * 0.0 - 0.0)) / (2.0 * dx * dx * dx);
@@ -126,7 +126,7 @@ void space_finite_diff(double *x, double *aux, double dx)
     // passo 1:
     // termo não-linear:
     // aux[0] = 0;
-    aux[1] = -6.0 * x[1] * ((x[2] - x[0]) / (2.0 * dx));
+    aux[1] = -x[1] * ((x[2] - x[0]) / (2.0 * dx));
     // derivada terceira:
     // aux[0] = 0;
     aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - 0.0)) / (2.0 * dx * dx * dx);
@@ -135,7 +135,7 @@ void space_finite_diff(double *x, double *aux, double dx)
     for (i = 2; i < space_steps - 2; i++)
     {
         // termo não-linear:
-        aux[i] = -6.0 * x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+        aux[i] = -x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
         // derivada terceira:
         aux[i] += -((x[i + 2] - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
     }
@@ -145,14 +145,14 @@ void space_finite_diff(double *x, double *aux, double dx)
     i = space_steps - 2;
     // termo não-linear:
     // aux[0] = 0;
-    aux[i] = -6.0 * x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+    aux[i] = -x[i] * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     // aux[0] = 0;
     aux[i] += -((0.0 - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
     i = space_steps - 1;
     // termo não-linear:
     // aux[0] = 0;
-    aux[i] = -6.0 * x[i] * ((0.0 - x[i - 1]) / (2.0 * dx));
+    aux[i] = -x[i] * ((0.0 - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     // aux[0] = 0;
     aux[i] += -((0.0 - (2.0 * 0.0) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
@@ -183,7 +183,7 @@ void time_rkf()
     discretize_axis(aux_ic);
 
     // soliton_initial_conditions(ic, 2);
-    general_initial_conditions(ic, 16., 0, 10.0); // condição inicial, pode-se alterar
+    general_initial_conditions(ic, 13., 0, 0.0); // condição inicial, pode-se alterar
     // general_initial_conditions(aux_ic, 4., 0, -85);
     // linear_combination(1.0, ic, 1.0, aux_ic, ic);
     //
@@ -248,6 +248,7 @@ void time_rkf()
     }
     mass_file.close();
     kdv_file.close();
+    energy_file.close();
 
     delete[] f1;
     delete[] f2;
@@ -256,6 +257,7 @@ void time_rkf()
     delete[] aux;
     delete[] ic;
     delete[] aux_ic;
+    delete[] ic_prime;
 }
 
 int main(void)

@@ -20,13 +20,13 @@ void general_initial_conditions(double *ic, double c, double t, double x0)
     }
 }
 
-void testing_initial_conditions(double *ic)
+void testing_initial_conditions(double *ic, double x, double a, double b)
 {
     for (int i = 0; i < space_steps; i++)
     {
-        if (i < (space_steps / 2))
+        if ((ic[i] < b) && (ic[i] > a))
         {
-            ic[i] = 1;
+            ic[i] = x;
         }
         else
         {
@@ -34,6 +34,18 @@ void testing_initial_conditions(double *ic)
         }
     }
 }
+// u(x,0) = A \cdot e^{-(x-x_0)^2 / w^2}
+void gaussian_pulse_initial_conditions(double *ic, double A, double w, double x0)
+{
+    double x_val = x_init;
+    for (int i = 0; i < space_steps; i++)
+    {
+        double arg = (x_val - x0) / w;
+        ic[i] = A * exp(-arg * arg);
+        x_val += dx;
+    }
+}
+
 void soliton_initial_conditions(double *ic, int n)
 {
     double aux;
@@ -112,12 +124,12 @@ double energy_conservation(double *x, double *x_prime)
 
 void calculate_first_x_derivative(double *x, double *x_prime)
 {
-    x_prime[0] = (x[1] - x[space_steps - 1]) / (2.0 * dx);
+    x_prime[0] = (x[1] - x[space_steps - 2]) / (2.0 * dx);
     for (int i = 1; i < space_steps - 1; i++)
     {
         x_prime[i] = (x[i + 1] - x[i - 1]) / (2.0 * dx);
     }
-    x_prime[space_steps - 1] = (x[0] - x[space_steps - 1]) / (2.0 * dx);
+    x_prime[space_steps - 1] = (x[0] - x[space_steps - 2]) / (2.0 * dx);
 }
 
 // Procedimento que discretiza e aproxima as derivadas espaciais, transformando
@@ -132,14 +144,16 @@ void space_finite_diff(double *x, double *aux, double dx)
 
     int i = 0;
     // Ponto i = 0
-    // termo não-linear:
-    aux[0] = -2.0 * mu * std::abs(x[0]) * ((x[1] - x[space_steps - 2]) / (2.0 * dx));
+    // termo não-linear: esquema de Zabusky e Kruskal
+    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[space_steps - 1])) / 3.0 *
+             ((x[i + 1] - x[space_steps - 1]) / (2.0 * dx));
     // derivada terceira:
     aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * x[space_steps - 2] - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 
-    // Ponto i = 1
+    i = 1;
     // termo não-linear:
-    aux[1] = -2.0 * mu * std::abs(x[1]) * ((x[2] - x[0]) / (2.0 * dx));
+    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+             ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - x[space_steps - 2])) / (2.0 * dx * dx * dx);
 
@@ -147,23 +161,27 @@ void space_finite_diff(double *x, double *aux, double dx)
     for (i = 2; i < space_steps - 2; i++)
     {
         // termo não-linear:
-        aux[i] = -2.0 * mu * std::abs(x[i]) * ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+        aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+                 ((x[i + 1] - x[i - 1]) / (2.0 * dx));
+
         // derivada terceira:
         aux[i] += -((x[i + 2] - (2.0 * x[i + 1]) + (2.0 * x[i - 1]) - x[i - 2])) / (2.0 * dx * dx * dx);
     }
 
     i = space_steps - 2;
     // termo não-linear:
-    aux[i] = -2.0 * mu * std::abs(x[space_steps - 2]) * ((x[space_steps - 1] - x[space_steps - 3]) / (2.0 * dx));
+    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+             ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     aux[i] +=
         -((x[1] - (2.0 * x[space_steps - 1]) + (2.0 * x[space_steps - 3]) - x[space_steps - 4])) / (2.0 * dx * dx * dx);
 
     i = space_steps - 1;
     // termo não-linear:
-    aux[i] = -2.0 * mu * std::abs(x[space_steps - 1]) * ((x[1] - x[space_steps - 2]) / (2.0 * dx));
+    aux[i] =
+        -2.0 * mu * (std::abs(x[0]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 * ((x[0] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
-    aux[i] += -((x[2] - (2.0 * x[1]) + (2.0 * x[space_steps - 2]) - x[space_steps - 3])) / (2.0 * dx * dx * dx);
+    aux[i] += -((x[1] - (2.0 * x[0]) + (2.0 * x[space_steps - 2]) - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 }
 
 // Resolve o vetor de EDO's com relação ao tempo usando um método de
@@ -191,9 +209,10 @@ void time_rkf()
     discretize_axis(aux_ic);
 
     // soliton_initial_conditions(ic, 2);
-    // testing_initial_conditions(ic); // condição inicial, pode-se alterar
-    general_initial_conditions(ic, 13., 0, 0.);
+    testing_initial_conditions(ic, 1.0, -5.0, 5.0); // condição inicial, pode-se alterar
+    // general_initial_conditions(ic, 13., 0, 0.);
     // linear_combination(1.0, ic, 1.0, aux_ic, ic);
+    // gaussian_pulse_initial_conditions(ic, 6.0, 2.0, 0.0);
     //
     // discretize_axis(aux_ic);
     // general_initial_conditions(aux_ic, 8., 0, -11);

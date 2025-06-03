@@ -124,7 +124,7 @@ double energy_conservation(double *x, double *x_prime)
 
 void calculate_first_x_derivative(double *x, double *x_prime)
 {
-    x_prime[0] = (x[1] - x[space_steps - 2]) / (2.0 * dx);
+    x_prime[0] = (x[1] - x[space_steps - 1]) / (2.0 * dx);
     for (int i = 1; i < space_steps - 1; i++)
     {
         x_prime[i] = (x[i + 1] - x[i - 1]) / (2.0 * dx);
@@ -145,23 +145,23 @@ void space_finite_diff(double *x, double *aux, double dx)
     int i = 0;
     // Ponto i = 0
     // termo não-linear: esquema de Zabusky e Kruskal
-    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[space_steps - 1])) / 3.0 *
+    aux[i] = (2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[space_steps - 1])) / 3.0) *
              ((x[i + 1] - x[space_steps - 1]) / (2.0 * dx));
     // derivada terceira:
-    aux[0] += -((x[2] - 2.0 * x[1] + 2.0 * x[space_steps - 2] - x[space_steps - 3])) / (2.0 * dx * dx * dx);
+    aux[i] += -((x[2] - 2.0 * x[1] + 2.0 * x[space_steps - 1] - x[space_steps - 2])) / (2.0 * dx * dx * dx);
 
     i = 1;
     // termo não-linear:
-    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+    aux[i] = (2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0) *
              ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
-    aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - x[space_steps - 2])) / (2.0 * dx * dx * dx);
+    aux[1] += -((x[3] - 2.0 * x[2] + 2.0 * x[0] - x[space_steps - 1])) / (2.0 * dx * dx * dx);
 
     // Dentro do intervalo:
     for (i = 2; i < space_steps - 2; i++)
     {
         // termo não-linear:
-        aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+        aux[i] = (2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0) *
                  ((x[i + 1] - x[i - 1]) / (2.0 * dx));
 
         // derivada terceira:
@@ -170,16 +170,16 @@ void space_finite_diff(double *x, double *aux, double dx)
 
     i = space_steps - 2;
     // termo não-linear:
-    aux[i] = -2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 *
+    aux[i] = (2.0 * mu * (std::abs(x[i + 1]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0) *
              ((x[i + 1] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     aux[i] +=
-        -((x[1] - (2.0 * x[space_steps - 1]) + (2.0 * x[space_steps - 3]) - x[space_steps - 4])) / (2.0 * dx * dx * dx);
+        -((x[0] - (2.0 * x[space_steps - 1]) + (2.0 * x[space_steps - 3]) - x[space_steps - 4])) / (2.0 * dx * dx * dx);
 
     i = space_steps - 1;
     // termo não-linear:
     aux[i] =
-        -2.0 * mu * (std::abs(x[0]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0 * ((x[0] - x[i - 1]) / (2.0 * dx));
+        (2.0 * mu * (std::abs(x[0]) + std::abs(x[i]) + std::abs(x[i - 1])) / 3.0) * ((x[0] - x[i - 1]) / (2.0 * dx));
     // derivada terceira:
     aux[i] += -((x[1] - (2.0 * x[0]) + (2.0 * x[space_steps - 2]) - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 }

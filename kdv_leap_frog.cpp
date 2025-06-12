@@ -1,13 +1,14 @@
+
 #include <cmath>
 #include <fstream>
 #include <iostream>
 const double mu = 1;
-const int space_steps = 20001;                            // número de passos no espaço
-const int time_steps = 2000;                              // número de passos no tempo
-const double x_init = -50.0;                              // início do intervalo no espaço
-const double x_final = 50.0;                              // fim do intervalo no espaço
-const double dx = (x_final - x_init) / (space_steps - 1); // incremento espaço
-const double dt = 0.001;                                  // incremento tempo
+const int space_steps = 20001;                            // Mantido
+const int time_steps = 10000000;                          // AVISO: Aumento significativo!
+const double x_init = -200.0;                             // Novo domínio
+const double x_final = 200.0;                             // Novo domínio
+const double dx = (x_final - x_init) / (space_steps - 1); // Será ~0.02
+const double dt = 0.000001; // dt drasticamente menor                            // incremento tempo
 
 void general_initial_conditions(double *ic, double c, double t, double x0)
 {
@@ -202,6 +203,7 @@ void time_rkf()
     double *ic = new double[space_steps];
     double *aux = new double[space_steps];
     double *aux_ic = new double[space_steps];
+    double *ic_prox = new double[space_steps];
     double *ic_prime = new double[space_steps];
     double mass, energy;
 
@@ -215,7 +217,7 @@ void time_rkf()
     // gaussian_pulse_initial_conditions(ic, 6.0, 2.0, 0.0);
     //
     // discretize_axis(aux_ic);
-    // general_initial_conditions(aux_ic, 8., 0, -11);
+    general_initial_conditions(aux_ic, 13., 0, 0.);
     // linear_combination(1.0, ic, 1.0, aux_ic, ic);
     ic_file.open("ic_data.txt", std::ios::out);
     for (int i = 0; i < space_steps; i++)
@@ -229,27 +231,43 @@ void time_rkf()
     energy_file.open("energy_data.txt", std::ios::out);
     for (int i = 0; i < time_steps; i++)
     {
-        space_finite_diff(ic, f1, dx);
-        linear_combination(1.0, ic, dt / 2, f1, aux);
-        space_finite_diff(aux, f2, dx);
-        linear_combination(1.0, ic, dt / 2, f2, aux);
-        space_finite_diff(aux, f3, dx);
-        linear_combination(1.0, ic, dt, f3, aux);
-        space_finite_diff(aux, f4, dx);
+        // space_finite_diff(ic, f1, dx);
+        // linear_combination(1.0, ic, dt / 2, f1, aux);
+        // space_finite_diff(aux, f2, dx);
+        // linear_combination(1.0, ic, dt / 2, f2, aux);
+        // space_finite_diff(aux, f3, dx);
+        // linear_combination(1.0, ic, dt, f3, aux);
+        // space_finite_diff(aux, f4, dx);
 
-        for (int j = 0; j < space_steps; j++)
-        {
-            ic[j] = ic[j] + ((dt / 6.0) * (f1[j] + 2.0 * f2[j] + 2.0 * f3[j] + f4[j]));
-        }
+        // for (int j = 0; j < space_steps; j++)
+        // {
+        //     ic[j] = ic[j] + ((dt / 6.0) * (f1[j] + 2.0 * f2[j] + 2.0 * f3[j] + f4[j]));
+        // }
 
         if (i == 0)
         {
+            space_finite_diff(ic, f1, dx);
+            linear_combination(1.0, ic, dt / 2, f1, aux);
+            space_finite_diff(aux, f2, dx);
+            linear_combination(1.0, ic, dt / 2, f2, aux);
+            space_finite_diff(aux, f3, dx);
+            linear_combination(1.0, ic, dt, f3, aux);
+            space_finite_diff(aux, f4, dx);
+
+            for (int j = 0; j < space_steps; j++)
+            {
+                ic[j] = ic[j] + ((dt / 6.0) * (f1[j] + 2.0 * f2[j] + 2.0 * f3[j] + f4[j]));
+            }
             mass = mass_conservation(ic);
             calculate_first_x_derivative(ic, ic_prime);
             energy = energy_conservation(ic, ic_prime);
         }
+        space_finite_diff(ic, f1, dx);
+        linear_combination(1.0, aux_ic, 2.0 * dt, f1, ic_prox);
+        linear_combination(1.0, ic, 0.0, f1, aux_ic);
+        linear_combination(1.0, ic_prox, 0.0, f1, ic);
 
-        if (i % 10 == 0)
+        if (i % 1000 == 0)
         {
             double aux_mass = mass;
             mass = mass_conservation(ic);
@@ -284,6 +302,7 @@ void time_rkf()
     delete[] aux;
     delete[] ic;
     delete[] aux_ic;
+    delete[] ic_prox;
     delete[] ic_prime;
 }
 

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 energy = []
 x = []
-x = np.linspace(0, 10, 200)
+x = np.linspace(0, 20, 200)
 e = open('energy_data.txt', 'r')
 energy_data = e.readlines()[0:200]
 for i in range(200):

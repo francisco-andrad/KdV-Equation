@@ -1,14 +1,15 @@
-
 #include <cmath>
 #include <fstream>
 #include <iostream>
+const int max_iterations = 100;
+const double tolerance = 1e-6;
 const double mu = 1;
-const int space_steps = 20001;                            // Mantido
-const int time_steps = 10000000;                          // AVISO: Aumento significativo!
-const double x_init = -200.0;                             // Novo domínio
-const double x_final = 200.0;                             // Novo domínio
+const int space_steps = 20001;
+const int time_steps = 20000;
+const double x_init = -200.0;
+const double x_final = 200.0;
 const double dx = (x_final - x_init) / (space_steps - 1); // Será ~0.02
-const double dt = 0.000001; // dt drasticamente menor                            // incremento tempo
+const double dt = 0.000001;                               // dt ultra-seguro
 
 void general_initial_conditions(double *ic, double c, double t, double x0)
 {
@@ -185,105 +186,109 @@ void space_finite_diff(double *x, double *aux, double dx)
     aux[i] += -((x[1] - (2.0 * x[0]) + (2.0 * x[space_steps - 2]) - x[space_steps - 3])) / (2.0 * dx * dx * dx);
 }
 
-// Resolve o vetor de EDO's com relação ao tempo usando um método de
-// Runge-Kutta com convergência O(h⁴).
-// O método é dado por y_(k+1) = y_(k) + h/6[f1 + 2*f2 + 2*f3 + f4], onde
-// f1 = f(x_k,y_k) * h; f2 = (x_k + h/2, y_k + h/2*f1);
-// f3 = f( x_k + h/2, y_k + h/2*f2) e f4 = (x_k + h, y_k + h*f3).
-
-void time_rkf()
+// Recebe u^n (xt) e a estimativa de u^{n+1} (xtplus1)
+// Retorna em aux o valor de 0.5 * (F(xt) + F(xtplus1))
+void space_finite_diff_CN(double *xt, double *xtplus1, double *aux, double dx)
 {
+    // Vetores temporários para F(u^n) e F(u^{n+1})
+    double *F_n = new double[space_steps];
+    double *F_n_plus_1 = new double[space_steps];
 
-    std::fstream mass_file, ic_file, energy_file, kdv_file;
+    // Calcula F(u^n) usando a sua função Leapfrog/RK4 já corrigida
+    // O primeiro argumento é a onda, o segundo é onde o resultado é salvo
+    space_finite_diff(xt, F_n, dx);
 
-    double *f1 = new double[space_steps];
-    double *f2 = new double[space_steps];
-    double *f3 = new double[space_steps];
-    double *f4 = new double[space_steps];
-    double *ic = new double[space_steps];
-    double *aux = new double[space_steps];
-    double *aux_ic = new double[space_steps];
-    double *ic_prox = new double[space_steps];
+    // Calcula F(u^{n+1}) usando a mesma função
+    space_finite_diff(xtplus1, F_n_plus_1, dx);
+
+    // Calcula a média e salva em aux
+    for (int i = 0; i < space_steps; i++)
+    {
+        aux[i] = 0.5 * (F_n[i] + F_n_plus_1[i]);
+    }
+
+    delete[] F_n;
+    delete[] F_n_plus_1;
+}
+
+void time_crank_nicolson()
+{
+    std::fstream mass_file, energy_file, kdv_file;
+
+    // --- Vetores necessários ---
+    double *ic = new double[space_steps];           // Guarda u^n (u_atual)
+    double *u_next_guess = new double[space_steps]; // Guarda a estimativa para u^{n+1}
+    double *u_prev_guess = new double[space_steps]; // Guarda a estimativa anterior para a verificação
+    double *F_average = new double[space_steps];    // Guarda a média de F
     double *ic_prime = new double[space_steps];
     double mass, energy;
 
+    // --- Condição Inicial ---
     discretize_axis(ic);
-    discretize_axis(aux_ic);
-
-    // soliton_initial_conditions(ic, 2);
-    // testing_initial_conditions(ic, 1.0, -5.0, 5.0); // condição inicial, pode-se alterar
     general_initial_conditions(ic, 13., 0, 0.);
-    // linear_combination(1.0, ic, 1.0, aux_ic, ic);
-    // gaussian_pulse_initial_conditions(ic, 6.0, 2.0, 0.0);
-    //
-    // discretize_axis(aux_ic);
-    general_initial_conditions(aux_ic, 13., 0, 0.);
-    // linear_combination(1.0, ic, 1.0, aux_ic, ic);
-    ic_file.open("ic_data.txt", std::ios::out);
-    for (int i = 0; i < space_steps; i++)
-    {
-        ic_file << ic[i] << std::endl;
-    }
-    ic_file.close();
 
+    // --- Arquivos de Saída ---
     kdv_file.open("kdv_data.txt", std::ios::out);
     mass_file.open("mass_data.txt", std::ios::out);
     energy_file.open("energy_data.txt", std::ios::out);
+
+    // --- Loop de Tempo Principal ---
     for (int i = 0; i < time_steps; i++)
     {
-        // space_finite_diff(ic, f1, dx);
-        // linear_combination(1.0, ic, dt / 2, f1, aux);
-        // space_finite_diff(aux, f2, dx);
-        // linear_combination(1.0, ic, dt / 2, f2, aux);
-        // space_finite_diff(aux, f3, dx);
-        // linear_combination(1.0, ic, dt, f3, aux);
-        // space_finite_diff(aux, f4, dx);
-
-        // for (int j = 0; j < space_steps; j++)
-        // {
-        //     ic[j] = ic[j] + ((dt / 6.0) * (f1[j] + 2.0 * f2[j] + 2.0 * f3[j] + f4[j]));
-        // }
-
-        if (i == 0)
+        // Chute inicial para a iteração: u^{n+1, k=0} = u^n
+        for (int k = 0; k < space_steps; k++)
         {
-            space_finite_diff(ic, f1, dx);
-            linear_combination(1.0, ic, dt / 2, f1, aux);
-            space_finite_diff(aux, f2, dx);
-            linear_combination(1.0, ic, dt / 2, f2, aux);
-            space_finite_diff(aux, f3, dx);
-            linear_combination(1.0, ic, dt, f3, aux);
-            space_finite_diff(aux, f4, dx);
-
-            for (int j = 0; j < space_steps; j++)
-            {
-                ic[j] = ic[j] + ((dt / 6.0) * (f1[j] + 2.0 * f2[j] + 2.0 * f3[j] + f4[j]));
-            }
-            mass = mass_conservation(ic);
-            calculate_first_x_derivative(ic, ic_prime);
-            energy = energy_conservation(ic, ic_prime);
+            u_next_guess[k] = ic[k];
         }
-        space_finite_diff(ic, f1, dx);
-        linear_combination(1.0, aux_ic, 2.0 * dt, f1, ic_prox);
-        linear_combination(1.0, ic, 0.0, f1, aux_ic);
-        linear_combination(1.0, ic_prox, 0.0, f1, ic);
 
+        // --- Laço da Iteração de Ponto Fixo com Verificação ---
+        for (int j = 0; j < max_iterations; j++)
+        {
+            // PASSO 1: Salvar a estimativa atual em 'u_prev_guess' ANTES de modificá-la.
+            // ESTA É A CORREÇÃO CRUCIAL.
+            for (int k = 0; k < space_steps; k++)
+            {
+                u_prev_guess[k] = u_next_guess[k];
+            }
+
+            // PASSO 2: Calcular a próxima estimativa e salvá-la em 'u_next_guess'
+            space_finite_diff_CN(ic, u_next_guess, F_average, dx);
+            linear_combination(1.0, ic, dt, F_average, u_next_guess);
+
+            // PASSO 3: Verificar a convergência
+            double error_norm = 0.0;
+            for (int k = 0; k < space_steps; k++)
+            {
+                error_norm += pow(u_next_guess[k] - u_prev_guess[k], 2);
+            }
+            error_norm = sqrt(error_norm / space_steps); // Norma RMS - mais robusta
+
+            if (error_norm < tolerance)
+            {
+                break; // Convergiu, podemos sair do laço de iteração
+            }
+
+            if (j == max_iterations - 1)
+            {
+                std::cout << "AVISO: Solver não convergiu no passo de tempo " << i << std::endl;
+            }
+        }
+        // --- Fim do Laço de Iteração ---
+
+        // A iteração terminou. Atualizamos a solução principal 'ic' para o próximo passo.
+        for (int j = 0; j < space_steps; j++)
+        {
+            ic[j] = u_next_guess[j];
+        }
+
+        // --- Bloco para salvar os dados ---
         if (i % 1000 == 0)
         {
-            double aux_mass = mass;
             mass = mass_conservation(ic);
             mass_file << std::scientific << mass << std::endl;
             calculate_first_x_derivative(ic, ic_prime);
             energy = energy_conservation(ic, ic_prime);
             energy_file << std::scientific << energy << std::endl;
-
-            // mass_file << std::endl;
-
-            if (std::abs(mass - aux_mass) > 0.1)
-            {
-                // std::cout << "Conservação de massa violada.\n";
-                // return;
-            }
-
             for (int k = 0; k < space_steps; k++)
             {
                 kdv_file << ic[k] << std::endl;
@@ -291,23 +296,21 @@ void time_rkf()
             kdv_file << std::endl;
         }
     }
+
     mass_file.close();
     kdv_file.close();
     energy_file.close();
 
-    delete[] f1;
-    delete[] f2;
-    delete[] f3;
-    delete[] f4;
-    delete[] aux;
+    // --- Limpeza de memória ---
     delete[] ic;
-    delete[] aux_ic;
-    delete[] ic_prox;
+    delete[] u_next_guess;
+    delete[] u_prev_guess;
+    delete[] F_average;
     delete[] ic_prime;
 }
 
 int main(void)
 {
-    time_rkf();
+    time_crank_nicolson();
     return 0;
 }

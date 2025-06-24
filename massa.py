@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 mass = []
 x = []
-x = np.linspace(0, 10, 200)
+x = np.linspace(0, 10, 100)
 m = open('mass_data.txt', 'r')
-mass_data = m.readlines()[0:200]
-for i in range(200):
+mass_data = m.readlines()[0:100]
+for i in range(100):
     mass.append(float(mass_data[i]))
 
 

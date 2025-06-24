@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 energy = []
 x = []
-x = np.linspace(0, 20, 200)
+x = np.linspace(0, 10, 100)
 e = open('energy_data.txt', 'r')
-energy_data = e.readlines()[0:200]
-for i in range(200):
+energy_data = e.readlines()[0:100]
+for i in range(100):
     energy.append(float(energy_data[i]))
 
 

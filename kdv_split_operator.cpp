@@ -2,14 +2,13 @@
 #include <fstream>
 #include <iostream>
 
-// --- PARÂMETROS DA SIMULAÇÃO (ALTA RESOLUÇÃO COM CRANK-NICOLSON) ---
-const double mu = 1.0;
+const double mu = 0.0;
 const int space_steps = 20001;
-const int time_steps = 100000; // Para T=10 com dt=0.0001. Pode ajustar conforme necessário.
+const int time_steps = 100000; // Para T=10 com dt=0.0001
 const double x_init = -200.0;
 const double x_final = 200.0;
-const double dx = (x_final - x_init) / (space_steps - 1); // Aprox. 0.02
-const double dt = 0.0001;                                 // dt relativamente grande, graças ao método implícito
+const double dx = (x_final - x_init) / (space_steps - 1); //  0.02
+const double dt = 0.0001;
 
 void general_initial_conditions(double *ic, double c, double t, double x0)
 {
@@ -135,10 +134,9 @@ void calculate_first_x_derivative(double *x, double *x_prime)
 }
 
 // Aplica um filtro de baixa-passagem explícito de 3 pontos na solução u
-// alpha: força do filtro (ex: 0.05 a 0.25). Um valor maior filtra mais agressivamente.
+// alpha: força do filtro
 void apply_filter(double *u, double alpha)
 {
-    // Cria uma cópia para não usar valores já filtrados no mesmo passo
     double *u_original = new double[space_steps];
     for (int i = 0; i < space_steps; i++)
     {
@@ -147,11 +145,10 @@ void apply_filter(double *u, double alpha)
 
     for (int i = 0; i < space_steps; i++)
     {
-        // Contorno periódico para os vizinhos
+        // Contorno periódico
         int im1 = (i == 0) ? space_steps - 1 : i - 1;
         int ip1 = (i == space_steps - 1) ? 0 : i + 1;
 
-        // Aplica a fórmula do filtro
         u[i] = u_original[i] + alpha * (u_original[ip1] - 2.0 * u_original[i] + u_original[im1]);
     }
 
@@ -159,10 +156,6 @@ void apply_filter(double *u, double alpha)
 }
 
 // Esta função calcula apenas o termo não-linear F_conv(u) = -2*mu*|u|*u_x
-// Ela usa o esquema conservativo de Zabusky & Kruskal.
-// u_in: o estado da onda de entrada
-// rhs_out: o vetor de saída onde o resultado será salvo
-// VERSÃO CORRIGIDA
 void calculate_nonlinear_rhs(double *u_in, double *rhs_out)
 {
     for (int i = 0; i < space_steps; i++)
@@ -170,17 +163,11 @@ void calculate_nonlinear_rhs(double *u_in, double *rhs_out)
         int im1 = (i == 0) ? space_steps - 1 : i - 1;
         int ip1 = (i == space_steps - 1) ? 0 : i + 1;
 
-        // Adicionado o sinal de menos no início da expressão
         rhs_out[i] = -(2.0 * mu * (std::abs(u_in[ip1]) + std::abs(u_in[i]) + std::abs(u_in[im1])) / 3.0) *
                      ((u_in[ip1] - u_in[im1]) / (2.0 * dx));
     }
 }
 
-// Recebe um estado u_in e avança no tempo por 'dt_step' usando Euler Explícito
-// u_in: o estado inicial do passo
-// u_out: o vetor de saída para salvar o resultado
-// dt_step: a duração do passo (pode ser dt ou dt/2)
-// ESPECIALISTA NÃO-LINEAR USANDO RK4 (MAIS ROBUSTO)
 // Resolve u_t = F_conv(u) por um passo dt_step usando RK4
 void solve_nonlinear_step_rk4(double *u_in, double *u_out, double dt_step)
 {
@@ -208,7 +195,6 @@ void solve_nonlinear_step_rk4(double *u_in, double *u_out, double dt_step)
         u_temp[i] = u_in[i] + dt_step * k3[i];
     calculate_nonlinear_rhs(u_temp, k4);
 
-    // Combina tudo para obter u_out
     for (int i = 0; i < space_steps; i++)
     {
         u_out[i] = u_in[i] + (dt_step / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
@@ -222,36 +208,22 @@ void solve_nonlinear_step_rk4(double *u_in, double *u_out, double dt_step)
 }
 
 // Resolve um sistema linear pentadiagonal M*x = r, onde M tem 5 diagonais.
-// a: diagonal inferior (a_i = M_{i, i-2})
-// b: diagonal sub-principal (b_i = M_{i, i-1})
-// c: diagonal principal (c_i = M_{i, i})
-// d: diagonal super-principal (d_i = M_{i, i+1})
-// e: diagonal superior (e_i = M_{i, i+2})
-// r: o vetor do lado direito (RHS)
-// x: o vetor da solução (saída)
-// n: o tamanho dos vetores (space_steps)
 void solve_pentadiagonal_system(double *a, double *b, double *c, double *d, double *e, double *r, double *x, int n)
 {
-    // Aloca vetores temporários para a eliminação
     double *c_prime = new double[n];
     double *d_prime = new double[n];
     double *r_prime = new double[n];
 
-    // --- PASSO 1: Eliminação Progressiva ---
-
-    // Primeira linha
     double m = b[0] / c[0];
     c_prime[0] = c[0];
     d_prime[0] = d[0];
     r_prime[0] = r[0];
 
-    // Segunda linha
     c_prime[1] = c[1] - m * d_prime[0];
     m = b[1] / c_prime[0];
     d_prime[1] = d[1] - m * e[0];
     r_prime[1] = r[1] - m * r_prime[0];
 
-    // Linhas do meio (de i=2 até n-1)
     for (int i = 2; i < n; i++)
     {
         double m1 = a[i] / c_prime[i - 2];
@@ -263,8 +235,6 @@ void solve_pentadiagonal_system(double *a, double *b, double *c, double *d, doub
         }
         r_prime[i] = r[i] - m1 * r_prime[i - 2] - m2 / c_prime[i - 1] * r_prime[i - 1];
     }
-
-    // --- PASSO 2: Substituição Regressiva ---
 
     // Última linha
     x[n - 1] = r_prime[n - 1] / c_prime[n - 1];
@@ -278,17 +248,12 @@ void solve_pentadiagonal_system(double *a, double *b, double *c, double *d, doub
         x[i] = (r_prime[i] - d_prime[i] * x[i + 1] - e[i] * x[i + 2]) / c_prime[i];
     }
 
-    // Libera memória
     delete[] c_prime;
     delete[] d_prime;
     delete[] r_prime;
 }
 
 // Resolve o passo de dispersão u_t = -u_xxx usando Crank-Nicolson.
-// u_in: o estado inicial do passo
-// u_out: o vetor de saída para salvar o resultado
-// dt_step: a duração do passo (será dt)
-// VERSÃO CORRIGIDA E DEFINITIVA do especialista em dispersão
 void solve_dispersion_step(double *u_in, double *u_out, double dt_step)
 {
     const int n = space_steps;
@@ -299,9 +264,8 @@ void solve_dispersion_step(double *u_in, double *u_out, double dt_step)
     double *c = new double[n]; // diagonal M(i, i)
     double *d = new double[n]; // diagonal M(i, i+1)
     double *e = new double[n]; // diagonal M(i, i+2)
-    double *r = new double[n]; // vetor do lado direito (RHS)
+    double *r = new double[n]; // vetor do lado direito
 
-    // --- Montar as 5 diagonais da matriz M (COM OS SINAIS CORRIGIDOS) ---
     for (int i = 0; i < n; i++)
     {
         a[i] = -k;
@@ -311,7 +275,6 @@ void solve_dispersion_step(double *u_in, double *u_out, double dt_step)
         e[i] = k;
     }
 
-    // Tratamento de fronteiras para matriz não-circular (está correto)
     a[0] = 0;
     b[0] = 0;
     a[1] = 0;
@@ -319,8 +282,6 @@ void solve_dispersion_step(double *u_in, double *u_out, double dt_step)
     d[n - 1] = 0;
     e[n - 2] = 0;
 
-    // --- Calcular o vetor do lado direito (RHS), r ---
-    // r = (I - (dt/2)*D_xxx) * u_in
     for (int i = 0; i < n; i++)
     {
         double u_im2 = (i > 1) ? u_in[i - 2] : 0.0;
@@ -330,14 +291,11 @@ void solve_dispersion_step(double *u_in, double *u_out, double dt_step)
 
         double u_xxx_n_stencil = (u_ip2 - 2.0 * u_ip1 + 2.0 * u_im1 - u_im2);
 
-        // r_j = u_j - k * (stencil)
         r[i] = u_in[i] - k * u_xxx_n_stencil;
     }
 
-    // --- Chamar o solver pentadiagonal ---
     solve_pentadiagonal_system(a, b, c, d, e, r, u_out, n);
 
-    // --- Liberar memória ---
     delete[] a;
     delete[] b;
     delete[] c;
@@ -356,37 +314,32 @@ void time_operator_splitting()
     double *u_prime = new double[space_steps];
     double mass, energy;
 
-    // Condição Inicial
     discretize_axis(u_current);
     // gaussian_pulse_initial_conditions(u_current, 15.0, 5.0, 0.0);
 
     general_initial_conditions(u_current, 13., 0, 0.);
 
-    // Abrir arquivos
     kdv_file.open("kdv_data.txt", std::ios::out);
     mass_file.open("mass_data.txt", std::ios::out);
     energy_file.open("energy_data.txt", std::ios::out);
 
-    // Loop de tempo principal usando Strang Splitting
     for (int i = 0; i < time_steps; i++)
     {
-        // A(dt/2) - Primeiro passo de convecção
+        // A(dt/2) - Primeiro passo não-linear
         solve_nonlinear_step_rk4(u_current, u_temp1, dt / 2.0);
 
         // B(dt) - Passo inteiro de dispersão
         solve_dispersion_step(u_temp1, u_temp2, dt);
 
-        // A(dt/2) - Segundo passo de convecção
+        // A(dt/2) - Segundo passo não-linear
         solve_nonlinear_step_rk4(u_temp2, u_current, dt / 2.0);
-        // u_current agora contém a solução no tempo n+1
 
-        // Aplica o filtro de frquências muito altas:
-        if (i > 0 && i % 500 == 0)
+        // Aplica o filtro de frquências
+        if (i > 0 && i % 100 == 0)
         {
-            apply_filter(u_current, 0.5); // Use um alpha pequeno para começar
+            apply_filter(u_current, 0.5);
         }
 
-        // Salva os dados a cada N passos
         if (i % 1000 == 0)
         {
             mass = mass_conservation(u_current);

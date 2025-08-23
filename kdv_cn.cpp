@@ -118,7 +118,7 @@ void space_finite_diff(double *xt, double *xtplus1, double *aux, double dx)
              (24.0 * dx); // ta ok
     // derivada terceira:
     // aux[0] = 0;
-    aux[i] += -((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (0.0) - (0.0)) /
+    aux[i] += ((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (0.0) - (0.0)) /
               (4.0 * dx * dx * dx);
     ; // ta ok
 
@@ -130,8 +130,8 @@ void space_finite_diff(double *xt, double *xtplus1, double *aux, double dx)
              (24.0 * dx);
 
     // derivada terceira:
-    aux[i] += -((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) -
-                (0.0)) /
+    aux[i] += ((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) -
+               (0.0)) /
               (4.0 * dx * dx * dx);
 
     // dentro do initervalo:
@@ -142,8 +142,8 @@ void space_finite_diff(double *xt, double *xtplus1, double *aux, double dx)
                    (xtplus1[i + 1] + xt[i + 1] - xtplus1[i - 1] - xt[i - 1])) /
                  (24.0 * dx);
         // derivada terceira:
-        aux[i] += -((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) +
-                    2.0 * (xtplus1[i - 1] + xt[i - 1]) - (xtplus1[i - 2] + xt[i - 2])) /
+        aux[i] += ((xtplus1[i + 2] + xt[i + 2]) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) +
+                   2.0 * (xtplus1[i - 1] + xt[i - 1]) - (xtplus1[i - 2] + xt[i - 2])) /
                   (4.0 * dx * dx * dx);
     }
     // para os últimos dois pontos, para os quais é necessário pontos
@@ -156,8 +156,8 @@ void space_finite_diff(double *xt, double *xtplus1, double *aux, double dx)
              (24.0 * dx); // ta ok
     // derivada terceira:
     // aux[i] = 0;
-    aux[i] += -((0.0) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) -
-                (xtplus1[i - 2] + xt[i - 2])) /
+    aux[i] += ((0.0) - 2.0 * (xtplus1[i + 1] + xt[i + 1]) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) -
+               (xtplus1[i - 2] + xt[i - 2])) /
               (4.0 * dx * dx * dx); // ta ok
     i = space_steps - 1;
     // termo não-linear:
@@ -167,7 +167,7 @@ void space_finite_diff(double *xt, double *xtplus1, double *aux, double dx)
              (24.0 * dx); // ta ok
     // derivada terceira:
     // aux[i] = 0;
-    aux[i] += -((0.0) - 2.0 * (0.0) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) - (xtplus1[i - 2] + xt[i - 2])) /
+    aux[i] += ((0.0) - 2.0 * (0.0) + 2.0 * (xtplus1[i - 1] + xt[i - 1]) - (xtplus1[i - 2] + xt[i - 2])) /
               (4.0 * dx * dx * dx);
 }
 

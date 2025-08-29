@@ -7,14 +7,14 @@
 using Complex = std::complex<double>;
 
 // --- Parâmetros da Simulação ---
-const int N = 512;
+const int N = 1024;
 const double L = 100.0;
-const double T_FINAL = 10.0;
+const double T_FINAL = 1.0;
 const double DT = 0.0001;
 
 // --- Parâmetros da KdV (de Tao) ---
 const double P = 3.0;
-const double MU = 0.0;
+const double MU = 1.0;
 
 // --- Parâmetros da Condição Inicial ---
 const double SOLITON_AMP = 6.0;
@@ -28,6 +28,25 @@ void dft(const std::vector<double> &in, std::vector<Complex> &out);
 void idft(const std::vector<Complex> &in, std::vector<double> &out);
 
 double mass_conservation(const std::vector<double> &u);
+double energy_conservation(const std::vector<double> &u, const std::vector<double> &u_x);
+void calculate_derivative_fourier(const std::vector<double> &u, std::vector<double> &u_x,
+                                  const std::vector<Complex> &k_vals)
+{
+    std::vector<Complex> u_hat(N);
+    std::vector<Complex> ux_hat(N);
+
+    // Passo 1: Transformar u para o espaço de Fourier
+    dft(u, u_hat);
+
+    // Passo 2: Multiplicar por ik no espaço de Fourier
+    for (int i = 0; i < N; ++i)
+    {
+        ux_hat[i] = k_vals[i] * u_hat[i];
+    }
+
+    // Passo 3: Transformar de volta para o espaço real para obter u_x
+    idft(ux_hat, u_x);
+}
 
 // Calcula o RHS
 void kdv_rhs_fourier(const std::vector<Complex> &u_hat_in, std::vector<Complex> &rhs_hat_out,
@@ -99,8 +118,9 @@ int main()
     std::vector<Complex> u_hat;
     dft(u_current, u_hat);
 
-    std::ofstream kdv_file("kdv_data_model_trunc.txt");
-    std::ofstream mass_file("mass_data_model_trunc.txt");
+    std::ofstream kdv_file("kdv_data.txt");
+    std::ofstream mass_file("mass_data.txt");
+    std::ofstream energy_file("energy_data.txt");
 
     // Loop Temporal (RK4)
     int num_steps = T_FINAL / DT;
@@ -119,6 +139,12 @@ int main()
             kdv_file << "\n";
 
             mass_file << std::scientific << mass_conservation(u_current) << "\n";
+            std::cout << "massa: " << std::scientific << mass_conservation(u_current) << "\n";
+            std::vector<double> u_x(N);
+            calculate_derivative_fourier(u_current, u_x, k_vals);
+            energy_file << std::scientific << energy_conservation(u_current, u_x) << "\n";
+            std::cout << "energia: " << std::scientific << energy_conservation(u_current, u_x) << "\n";
+
             std::cout << "Passo " << i << "/" << num_steps << ", Tempo = " << i * DT << std::endl;
         }
 
@@ -186,5 +212,18 @@ double mass_conservation(const std::vector<double> &u)
     double sum = 0.0;
     for (int i = 0; i < N; ++i)
         sum += u[i] * u[i];
+    return sum * DX;
+}
+
+// Definição de energy_conservation que estava faltando no seu arquivo original
+double energy_conservation(const std::vector<double> &u, const std::vector<double> &u_x)
+{
+    double sum = 0.0;
+    for (int i = 0; i < N; i++)
+    {
+        // E(u) = integral( 1/2 * (u_x)^2 - mu/(p+1) * u^(p+1) )
+        // Note que o sinal de MU é importante aqui.
+        sum += 0.5 * u_x[i] * u_x[i] - (MU / (P + 1.0)) * pow(u[i], P + 1.0);
+    }
     return sum * DX;
 }

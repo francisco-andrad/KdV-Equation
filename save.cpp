@@ -2,15 +2,16 @@
 #include <complex>
 #include <cstdlib>
 #include <fstream>
-#include <ios>
 #include <iostream>
 #include <vector>
 
 using Complex = std::complex<double>;
 
 // --- Parâmetros da Simulação ---
-const int N = 1024;
-const double L = 100.0;
+const int Nx = 512;
+const int Ny = 512;
+const double Lx = 100.0;
+const double Ly = 100.0;
 const double T_FINAL = 10.0;
 const double DT = 0.0001;
 
@@ -26,8 +27,9 @@ const double SOLITON_X0 = 40.0;
 const double DX = L / N;
 
 // Funções de DFT/IDFT
-void dft(const std::vector<double> &in, std::vector<Complex> &out);
-void idft(const std::vector<Complex> &in, std::vector<double> &out);
+void dft_2d(const std::vector<std::vector<double>> &in, std::vector<std::vector<Complex>> &out);
+void idft_1d_complex(const std::vector<Complex> &in, std::vector<Complex> &out);
+void idft_2d(const std::vector<std::vector<Complex>> &in, std::vector<std::vector<double>> &out);
 
 double mass_conservation(const std::vector<double> &u);
 double energy_conservation(const std::vector<double> &u, const std::vector<double> &u_x);
@@ -75,75 +77,125 @@ void calculate_second_derivative_fourier(const std::vector<double> &u, std::vect
 }
 
 // Calcula o RHS
-void kdv_rhs_fourier(const std::vector<Complex> &u_hat_in, std::vector<Complex> &rhs_hat_out,
-                     const std::vector<Complex> &k_vals)
+void kdv_rhs_fourier_2d(const std::vector<std::vector<Complex>> &u_hat_in,
+                        std::vector<std::vector<Complex>> &rhs_hat_out, const std::vector<std::vector<double>> &kx,
+                        const std::vector<std::vector<double>> &ky)
 {
-    std::vector<Complex> u_hat_truncated = u_hat_in;
+    int Ny = u_hat_in.size();
+    int Nx = u_hat_in[0].size();
 
-    // --- PASSO 1: truncar
-    int k_cutoff = N / 3;
-    for (int i = k_cutoff; i < N - k_cutoff; ++i)
+    std::vector<std::vector<Complex>> u_hat_truncated = u_hat_in;
+
+    // --- PASSO 1: Truncamento (De-aliasing) 2D ---
+    // A regra dos 2/3 é aplicada em cada direção independentemente.
+    int k_cutoff_x = Nx / 3;
+    int k_cutoff_y = Ny / 3;
+    for (int i = 0; i < Ny; ++i)
     {
-        u_hat_truncated[i] = Complex(0.0, 0.0);
+        for (int j = 0; j < Nx; ++j)
+        {
+            // Zera se a frequência em X OU em Y for muito alta
+            if (std::abs(kx[i][j]) > (2.0 * M_PI * k_cutoff_x / Lx) ||
+                std::abs(ky[i][j]) > (2.0 * M_PI * k_cutoff_y / Ly))
+            {
+                u_hat_truncated[i][j] = Complex(0.0, 0.0);
+            }
+        }
     }
 
-    // --- PASSO 2: Calcular o termo não-linear a partir do espectro truncado
-    std::vector<double> u_real;
-    idft(u_hat_truncated, u_real);
+    // --- PASSO 2: Calcular o termo não-linear a partir do espectro truncado ---
+    // Usar vetores e funções 2D
+    std::vector<std::vector<double>> u_real;
+    idft_2d(u_hat_truncated, u_real);
 
-    std::vector<double> nonlin_term_real(N);
-    for (int i = 0; i < N; ++i)
+    std::vector<std::vector<double>> nonlin_term_real(Ny, std::vector<double>(Nx));
+    for (int i = 0; i < Ny; ++i)
     {
-        nonlin_term_real[i] = pow(u_real[i], P);
+        for (int j = 0; j < Nx; ++j)
+        {
+            nonlin_term_real[i][j] = pow(u_real[i][j], P);
+        }
     }
 
-    std::vector<Complex> nonlin_term_hat;
-    dft(nonlin_term_real, nonlin_term_hat);
+    std::vector<std::vector<Complex>> nonlin_term_hat;
+    dft_2d(nonlin_term_real, nonlin_term_hat);
 
-    // --- PASSO 3:
-    rhs_hat_out.resize(N);
-    for (int i = 0; i < N; ++i)
+    // --- PASSO 3: Combinar os termos Linear e Não-Linear ---
+    rhs_hat_out.assign(Ny, std::vector<Complex>(Nx));
+    for (int i = 0; i < Ny; ++i)
     {
-        Complex ik = k_vals[i];
-        Complex ik3 = ik * ik * ik;
+        for (int j = 0; j < Nx; ++j)
+        {
+            double kx_val = kx[i][j];
+            double ky_val = ky[i][j];
 
-        Complex linear_part = -ik3 * u_hat_truncated[i];
+            // Termo Linear: ikx * (kx^2 + ky^2) * u_hat
+            Complex linear_factor = Complex(0.0, kx_val * (kx_val * kx_val + ky_val * ky_val));
+            Complex linear_part = linear_factor * u_hat_truncated[i][j];
 
-        Complex nonlin_part = MU * ik * nonlin_term_hat[i];
+            // Termo Não-Linear: -MU * ikx * F(u^p)
+            Complex nonlin_factor = Complex(0.0, -MU * kx_val);
+            Complex nonlin_part = nonlin_factor * nonlin_term_hat[i][j];
 
-        rhs_hat_out[i] = linear_part + nonlin_part;
+            // A equação é u_t = - (parte_linear) - (parte_nao_linear)
+            rhs_hat_out[i][j] = -linear_part - nonlin_part;
+        }
     }
 }
 
 int main()
 {
-    std::cout << "Iniciando simulacao KdV" << std::endl;
+    std::cout << "Iniciando simulacao ZK" << std::endl;
 
-    // Setup dos vetores de números de onda (ik) para N pontos
-    std::vector<Complex> k_vals(N);
-    for (int i = 0; i < N / 2; ++i)
+    std::vector<std::vector<double>> kx(Ny, std::vector<double>(Nx));
+    std::vector<std::vector<double>> ky(Ny, std::vector<double>(Nx));
+
+    // Loop sobre cada ponto (i, j) da grade de Fourier
+    for (int i = 0; i < Ny; ++i)
     {
-        k_vals[i] = Complex(0.0, 2.0 * M_PI * i / L);
-    }
-    for (int i = N / 2; i < N; ++i)
-    {
-        k_vals[i] = Complex(0.0, 2.0 * M_PI * (i - N) / L);
+        for (int j = 0; j < Nx; ++j)
+        {
+            // Calcular kx baseado no índice da coluna (j)
+            if (j < Nx / 2)
+            {
+                kx[i][j] = 2.0 * M_PI * j / Lx;
+            }
+            else
+            {
+                kx[i][j] = 2.0 * M_PI * (j - Nx) / Lx;
+            }
+
+            // Calcular ky baseado no índice da linha (i)
+            if (i < Ny / 2)
+            {
+                ky[i][j] = 2.0 * M_PI * i / Ly;
+            }
+            else
+            {
+                ky[i][j] = 2.0 * M_PI * (i - Ny) / Ly;
+            }
+        }
     }
 
-    // Condição Inicial
-    std::vector<double> u_current(N), u_x(N), x_values(N);
-    for (int i = 0; i < N; i++)
-    {
-        double x = i * DX;
-        x_values[i] = x;
-        double sech_arg = 0.5 * sqrt(SOLITON_AMP) * (x - SOLITON_X0);
-        u_current[i] = 0.5 * SOLITON_AMP / (cosh(sech_arg) * cosh(sech_arg));
-    }
-    u_current[0] = 0.0;
-    u_current[N - 1] = 0.0;
+    std::vector<std::vector<double>> u_current(Ny, std::vector<double>(Nx));
 
-    std::vector<Complex> u_hat;
-    dft(u_current, u_hat);
+    // Percorrer a grade 2D com loops aninhados
+    for (int i = 0; i < Ny; ++i)
+    { // Loop sobre as linhas (eixo y)
+        // double y = -Ly / 2.0 + i * DY;
+
+        for (int j = 0; j < Nx; ++j)
+        { // Loop sobre as colunas (eixo x)
+            double x = -Lx / 2.0 + j * DX;
+
+            // A fórmula do sóliton depende apenas de x para criar a "linha"
+            double sech_arg = 0.5 * sqrt(SOLITON_AMP) * (x - SOLITON_X0);
+            u_current[i][j] = 0.5 * SOLITON_AMP / (cosh(sech_arg) * cosh(sech_arg));
+        }
+    }
+
+    std::vector<std::vector<Complex>> u_hat;
+    dft_2d(u_current, u_hat);
 
     std::ofstream kdv_file("kdv_data.txt");
     std::ofstream mass_file("mass_data.txt");
@@ -232,37 +284,138 @@ int main()
     return 0;
 }
 
-// Implementações das funções restantes
-void dft(const std::vector<double> &in, std::vector<Complex> &out)
+// Função auxiliar para calcular a DFT 1D em um vetor
+void dft_1d(const std::vector<Complex> &in, std::vector<Complex> &out)
 {
-    int size = in.size();
-    out.resize(size);
-    for (int k = 0; k < size; ++k)
+    int N = in.size();
+    out.resize(N);
+    for (int k = 0; k < N; ++k)
     {
         out[k] = Complex(0.0, 0.0);
-        for (int n = 0; n < size; ++n)
+        for (int n = 0; n < N; ++n)
         {
-            double angle = -2.0 * M_PI * k * n / size;
+            double angle = -2.0 * M_PI * k * n / N;
             out[k] += in[n] * Complex(cos(angle), sin(angle));
         }
     }
 }
-void idft(const std::vector<Complex> &in, std::vector<double> &out)
+
+// Função principal para a DFT 2D
+void dft_2d(const std::vector<std::vector<double>> &in, std::vector<std::vector<Complex>> &out)
 {
-    int size = in.size();
-    out.resize(size);
-    std::vector<Complex> temp_out(size);
-    for (int n = 0; n < size; ++n)
+    int N_rows = in.size();
+    if (N_rows == 0)
+        return;
+    int N_cols = in[0].size();
+
+    // Matriz temporária para armazenar o resultado da primeira etapa
+    std::vector<std::vector<Complex>> temp_matrix(N_rows, std::vector<Complex>(N_cols));
+
+    // --- ETAPA 1: Aplicar DFT 1D em cada LINHA ---
+    for (int i = 0; i < N_rows; ++i)
     {
-        temp_out[n] = Complex(0.0, 0.0);
-        for (int k = 0; k < size; ++k)
+        // Converte a linha de double para complex para a função dft_1d
+        std::vector<Complex> row_in(N_cols);
+        for (int j = 0; j < N_cols; ++j)
         {
-            double angle = 2.0 * M_PI * k * n / size;
-            temp_out[n] += in[k] * Complex(cos(angle), sin(angle));
+            row_in[j] = Complex(in[i][j], 0.0);
         }
-        out[n] = temp_out[n].real() / size;
+        dft_1d(row_in, temp_matrix[i]);
+    }
+
+    // --- ETAPA 2: Aplicar DFT 1D em cada COLUNA da matriz temporária ---
+    out.assign(N_rows, std::vector<Complex>(N_cols));
+    for (int j = 0; j < N_cols; ++j)
+    {
+        // Extrai a coluna da matriz temporária
+        std::vector<Complex> col_in(N_rows);
+        for (int i = 0; i < N_rows; ++i)
+        {
+            col_in[i] = temp_matrix[i][j];
+        }
+
+        // Calcula a DFT da coluna
+        std::vector<Complex> col_out;
+        dft_1d(col_in, col_out);
+
+        // Armazena o resultado na coluna correspondente da matriz de saída
+        for (int i = 0; i < N_rows; ++i)
+        {
+            out[i][j] = col_out[i];
+        }
     }
 }
+
+void idft_1d_complex(const std::vector<Complex> &in, std::vector<Complex> &out)
+{
+    int N = in.size();
+    out.resize(N);
+    for (int n = 0; n < N; ++n)
+    {
+        out[n] = Complex(0.0, 0.0);
+        for (int k = 0; k < N; ++k)
+        {
+            double angle = 2.0 * M_PI * k * n / N;
+            out[n] += in[k] * Complex(cos(angle), sin(angle));
+        }
+    }
+}
+
+// Função principal e CORRIGIDA para a IDFT 2D
+// A saída agora é uma matriz de 'double'
+void idft_2d(const std::vector<std::vector<Complex>> &in, std::vector<std::vector<double>> &out)
+{
+    int N_rows = in.size();
+    if (N_rows == 0)
+        return;
+    int N_cols = in[0].size();
+
+    // Matriz temporária para armazenar o resultado da primeira etapa (ainda complexa)
+    std::vector<std::vector<Complex>> temp_matrix(N_rows, std::vector<Complex>(N_cols));
+
+    // --- ETAPA 1: Aplicar IDFT 1D (Complex -> Complex) em cada LINHA ---
+    for (int i = 0; i < N_rows; ++i)
+    {
+        // A entrada da linha 'i' já é complexa, não precisa converter
+        idft_1d_complex(in[i], temp_matrix[i]);
+    }
+
+    // Matriz temporária final para o resultado completo (ainda complexa)
+    std::vector<std::vector<Complex>> final_complex_matrix(N_rows, std::vector<Complex>(N_cols));
+
+    // --- ETAPA 2: Aplicar IDFT 1D (Complex -> Complex) em cada COLUNA da matriz temporária ---
+    for (int j = 0; j < N_cols; ++j)
+    {
+        // Extrai a coluna da matriz temporária
+        std::vector<Complex> col_in(N_rows);
+        for (int i = 0; i < N_rows; ++i)
+        {
+            col_in[i] = temp_matrix[i][j];
+        }
+
+        // Calcula a IDFT da coluna
+        std::vector<Complex> col_out;
+        idft_1d_complex(col_in, col_out);
+
+        // Armazena o resultado na coluna correspondente da matriz complexa final
+        for (int i = 0; i < N_rows; ++i)
+        {
+            final_complex_matrix[i][j] = col_out[i];
+        }
+    }
+
+    // --- ETAPA 3: Copiar a parte real para a saída e aplicar a NORMALIZAÇÃO 2D ---
+    out.assign(N_rows, std::vector<double>(N_cols));
+    double normalization_factor = 1.0 / (N_rows * N_cols);
+    for (int i = 0; i < N_rows; ++i)
+    {
+        for (int j = 0; j < N_cols; ++j)
+        {
+            out[i][j] = final_complex_matrix[i][j].real() * normalization_factor;
+        }
+    }
+}
+
 double mass_conservation(const std::vector<double> &u)
 {
     double sum = 0.0;
@@ -323,5 +476,5 @@ double energy_center(const std::vector<double> &u, const std::vector<double> &u_
     {
         sum += x_values[i] * (0.5 * u_x[i] * u_x[i] + (MU / (P + 1.0)) * pow(u[i], P + 1.0));
     }
-    return sum * DX * (1.0 / energy_conservation(u, u_x));
+    return sum * DX * (1.0 / mass_conservation(u));
 }

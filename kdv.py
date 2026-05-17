@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-x_axis = np.linspace(-200, 200, 512)
+x_axis = np.linspace(-200, 200, 1024)
 massa_eixo = np.linspace(0, 100, 1000)
 u_axis = []
 mass = []
@@ -11,20 +11,20 @@ mass_data = m.readlines()[0:1000]
 # for k in range(1000):
 #     mass.append(float(mass_data[k]))
 a = 0
-b = 512
+b = 1024
 
 aux = []
 aux_mass = []
 
-for i in range(200):
-    plt.title("Solução - KdV defocusing")
+for i in range(1000):
+    # plt.title("Solução - KdV defocusing")
     plt.xlabel("x")
-    plt.ylabel("-u")
+    plt.ylabel("u(x;t)")
     plt.xlim(-200, 200)
     plt.ylim(-5, 15)
     f = open('kdv_data.txt', 'r')
     aux = f.readlines()[a:b]
-    for j in range(512):
+    for j in range(1024):
         u_axis.append(float(aux[j]))
 
     # for k in range(1000):
@@ -37,8 +37,8 @@ for i in range(200):
     plt.close()
     u_axis.clear()
     aux_mass.clear()
-    a = a + 513
-    b = b + 513
+    a = a + 1025
+    b = b + 1025
     f.close()
 
 

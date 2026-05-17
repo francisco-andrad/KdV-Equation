@@ -5,7 +5,7 @@ const int max_iterations = 100;
 const double tolerance = 1e-6;
 const double mu = 1;
 const int space_steps = 20001;
-const int time_steps = 20000;
+const int time_steps = 100000;
 const double x_init = -200.0;
 const double x_final = 200.0;
 const double dx = (x_final - x_init) / (space_steps - 1); // Será ~0.02
@@ -228,9 +228,9 @@ void time_crank_nicolson()
     general_initial_conditions(ic, 13., 0, 0.);
 
     // --- Arquivos de Saída ---
-    kdv_file.open("kdv_data.txt", std::ios::out);
-    mass_file.open("mass_data.txt", std::ios::out);
-    energy_file.open("energy_data.txt", std::ios::out);
+    kdv_file.open("nc_kdv_data.txt", std::ios::out);
+    mass_file.open("nc_mass_data.txt", std::ios::out);
+    energy_file.open("nc_energy_data.txt", std::ios::out);
 
     // --- Loop de Tempo Principal ---
     for (int i = 0; i < time_steps; i++)
@@ -284,6 +284,7 @@ void time_crank_nicolson()
         // --- Bloco para salvar os dados ---
         if (i % 1000 == 0)
         {
+            std::cout << "iteração " << i << " de " << time_steps << "\n";
             mass = mass_conservation(ic);
             mass_file << std::scientific << mass << std::endl;
             calculate_first_x_derivative(ic, ic_prime);

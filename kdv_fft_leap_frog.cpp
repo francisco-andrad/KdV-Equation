@@ -11,10 +11,10 @@ using Complex = std::complex<double>;
 
 // --- Parâmetros da Simulação 2D ---
 const int Nx = std::pow(2, 14);
-const int Ny = 1024;
+// const int Ny = 1024;
 const double Lx = 100.0;
-const double Ly = 100.0;
-const double T_FINAL = 1.0;
+// const double Ly = 100.0;
+const double T_FINAL = 0.01;
 const double DT = 0.00001;
 
 // --- Parâmetros da Equação ZK (Generalizada) ---
@@ -234,9 +234,8 @@ double mass_center(const double *u_real)
 {
     double sum = 0.0;
 
-    for (int i = 0; i < Ny; ++i)
+    for (int i = 0; i < Nx; ++i)
     {
-
         double x = -(Lx / 2.0) + (i * DX);
         int index = i * Nx + i;
 
@@ -292,6 +291,7 @@ void save_solution(std::ofstream &solution_stream, std::ofstream &mass_stream, s
     mass_stream << std::scientific << current_mass << std::endl;
     energy_stream << std::scientific << current_energy << std::endl;
 
+    std::cout << "Massa e energia atuais: " << current_mass << " " << current_energy << std::endl;
     double mass_error = std::abs(initial_mass - current_mass);
     double energy_error = std::abs(initial_energy - current_energy);
 
@@ -393,6 +393,11 @@ int main(void)
             fftw_complex *u_hat_temp = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * NUM_COEFFS);
             memcpy(u_hat_temp, u_hat_atual, sizeof(fftw_complex) * NUM_COEFFS);
             fftw_execute_dft_c2r(plan_bwd, u_hat_temp, u_real);
+            double norm_factor = 1.0 / (double)(Nx);
+            for (int j = 0; j < Nx; ++j)
+            {
+                u_real[j] = u_real[j] * norm_factor;
+            }
 
             double current_time = i * DT;
             save_solution(kdv_file, mass_file, energy_file, error_file, centers_file, k, u_real, plan_fwd, plan_bwd,

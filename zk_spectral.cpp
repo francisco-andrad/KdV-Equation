@@ -226,6 +226,8 @@ int main()
             double energy_error = std::abs(current_energy - initial_energy);
             error_file << current_time << "," << mass_error << "," << energy_error << "\n";
 
+            std::cout << current_time << "," << mass_error << "," << energy_error << "\n";
+
             double mass_cx = mass_center_x_2d(u_real);
             double mass_cy = mass_center_y_2d(u_real);
             double energy_cx = energy_center_x_2d(u_real, u_x_real, u_y_real);

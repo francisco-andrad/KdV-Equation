@@ -59,7 +59,7 @@ for i, t in enumerate(times):
     plt.colorbar(label='u(x,y;t)')
     # plt.title(f'Solução no instante t = {t:.3f}')
     plt.ylim(-20.0, 20.0)
-    plt.xlim(-20.0, 20.0)
+    plt.xlim(-20.0,20.0)
     plt.xlabel('x')
     plt.ylabel('y')
     

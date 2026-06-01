@@ -12,9 +12,9 @@ using Complex = std::complex<double>;
 // --- Parâmetros da Simulação 2D ---
 const int Nx = std::pow(2, 14);
 // const int Ny = 1024;
-const double Lx = 100.0;
+const double Lx = 1000.0;
 // const double Ly = 100.0;
-const double T_FINAL = 0.01;
+const double T_FINAL = 0.05;
 const double DT = 0.00001;
 
 // --- Parâmetros da Equação ZK (Generalizada) ---
@@ -162,15 +162,15 @@ void perform_cn_leapfrog_step(fftw_complex *u_hat_antigo, fftw_complex *u_hat_at
 
         RHSh = RHSh / (one + (ik * ik * ik) * dt);
 
-        u_hat_atual[i][0] = RHSh.real();
-        u_hat_atual[i][1] = RHSh.imag();
+        u_hat_novo[i][0] = 2.0 * RHSh.real() - u_hat_antigo[i][0];
+        u_hat_novo[i][1] = 2.0 * RHSh.imag() - u_hat_antigo[i][1];
     }
 
-    for (int i = 0; i < NUM_COEFFS; ++i)
-    {
-        u_hat_novo[i][0] = 2.0 * u_hat_atual[i][0] - u_hat_antigo[i][0];
-        u_hat_novo[i][0] = 2.0 * u_hat_atual[i][1] - u_hat_antigo[i][1];
-    }
+    // for (int i = 0; i < NUM_COEFFS; ++i)
+    // {
+    //     u_hat_novo[i][0] = 2.0 * u_hat_atual[i][0] - u_hat_antigo[i][0];
+    //     u_hat_novo[i][1] = 2.0 * u_hat_atual[i][1] - u_hat_antigo[i][1];
+    // }
 
     fftw_free(n_hat);
 }
@@ -178,9 +178,6 @@ void perform_cn_leapfrog_step(fftw_complex *u_hat_antigo, fftw_complex *u_hat_at
 double mass_integral(const double *u_real)
 {
     double sum = 0.0;
-    // A normalização é necessária porque a IFFT da FFTW não é normalizada. ????????
-    // double norm_factor = 1.0 / (double)(Nx);
-
     for (int i = 0; i < Nx; ++i)
     {
         double u_val = u_real[i];
@@ -239,7 +236,7 @@ double mass_center(const double *u_real)
         double x = -(Lx / 2.0) + (i * DX);
         int index = i * Nx + i;
 
-        double u_val;
+        double u_val = u_real[i];
         double mass_density = u_val * u_val;
 
         sum += x * mass_density;
@@ -319,6 +316,17 @@ double *gaussian_initial_conditions(double *axis, double x0, double var, double 
     return axis;
 }
 
+double *sech_initial_conditions(double *axis, double x0, double c)
+{
+    for (int i = 0; i < Nx; ++i)
+    {
+        double x = (-Lx / 2.0) + (i * DX);
+        double arg = (0.5 * std::sqrt(c) * (x - x0));
+        axis[i] = c / (2.0 * std::cosh(arg) * std::cosh(arg));
+    }
+    return axis;
+}
+
 int main(void)
 {
     std::cout << "Iniciando simulação: KdV fft-leap-frog \n";
@@ -348,22 +356,33 @@ int main(void)
     std::vector<double> k(NUM_COEFFS);
     for (int i = 0; i < NUM_COEFFS; ++i)
     {
-        k[i] = 2.0 * M_PI * ((double)i / (double)Nx);
+        k[i] = 2.0 * M_PI * ((double)i / (double)Lx);
     }
 
-    u_real = gaussian_initial_conditions(u_real, 0.0, 1.0, 2.0);
+    std::vector<double> border_conditions(Nx);
+    for (int i = 0; i < Nx; ++i)
+    {
+        double x = -Lx / 2.0 + (i * DX);
+        // Argumento: (2x / W)^(2N)
+        double arg = std::pow((2.0 * x) / (Lx * 1.3), 2.0 * 6);
+        border_conditions[i] = std::exp(-arg);
+    }
+
+    // u_real = gaussian_initial_conditions(u_real, 0.0, 2.0, 1.0);
+
+    u_real = sech_initial_conditions(u_real, 20.0, 6);
 
     //
+    //
+    // for (int i = 0; i < Nx; i++)
+    // {
+    //     std::cout << u_real[i] << " ";
+    // }
+    // std::cout << "\n";
 
     fftw_execute_dft_r2c(plan_fwd, u_real, u_hat_atual);
     double initial_mass, initial_energy;
     double *ux_real_init = (double *)fftw_malloc(sizeof(double) * Nx);
-
-    // Precisamos do u_real inicial normalizado para os cálculos
-    // isso tudo é surto
-    // fftw_complex *u_hat_temp = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * NUM_COEFFS);
-    // memcpy(u_hat_temp, u_hat_atual, sizeof(fftw_complex) * NUM_COEFFS);
-    // fftw_execute_dft_c2r(plan_bwd, u_hat_temp, u_real);
 
     calculate_derivative_fourier(u_hat_atual, ux_real_init, k, plan_bwd);
 
@@ -378,7 +397,11 @@ int main(void)
     std::cout << "Executando passo inicial com IRK2 para encontrar u^1..." << std::endl;
     perform_irk2_startup_step(u_hat_atual, u_hat_novo, k, plan_bwd, plan_fwd);
     std::cout << "Passo inicial concluido." << std::endl;
-
+    // for (int i = 0; i < Nx; i++)
+    // {
+    //     std::cout << u_real[i] << " ";
+    // }
+    std::cout << "\n";
     memcpy(u_hat_antigo, u_hat_atual, sizeof(fftw_complex) * NUM_COEFFS);
     memcpy(u_hat_atual, u_hat_novo, sizeof(fftw_complex) * NUM_COEFFS);
 
@@ -407,6 +430,16 @@ int main(void)
 
             std::cout << "Passo " << i << " / " << num_steps << std::endl;
         }
+
+        fftw_execute_dft_c2r(plan_bwd, u_hat_atual, u_real);
+        double norm_factor = 1.0 / (double)(Nx);
+        for (int j = 0; j < Nx; ++j)
+        {
+            u_real[j] = u_real[j] * norm_factor;
+            u_real[j] = u_real[j] * border_conditions[j];
+        }
+
+        fftw_execute_dft_r2c(plan_fwd, u_real, u_hat_atual);
 
         perform_cn_leapfrog_step(u_hat_antigo, u_hat_atual, u_hat_novo, k, plan_bwd, plan_fwd);
 
